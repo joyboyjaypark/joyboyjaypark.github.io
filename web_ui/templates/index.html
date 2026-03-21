@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Renewal UI</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      textarea { width: 100%; height: 200px; }
+    </style>
+  </head>
+  <body>
+    <h1>Renewal UI</h1>
+    <form method="post" action="/run">
+      <label>URL: <input type="text" name="url" placeholder="(기본)" style="width:70%"></label><br/>
+      <label><input type="checkbox" name="headless"> Headless 모드</label><br/>
+      <button type="submit">실행</button>
+    </form>
+
+    <h2>마지막 실행 결과</h2>
+    {% if result.logs %}
+      <textarea readonly>{% for l in result.logs %}{{ l }}
+{% endfor %}</textarea>
+    {% else %}
+      <p>아직 실행된 결과가 없습니다.</p>
+    {% endif %}
+  </body>
+</html>
