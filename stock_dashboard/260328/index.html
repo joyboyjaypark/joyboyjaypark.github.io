@@ -492,6 +492,8 @@ const rightLabelPlugin = {
   }
 };
 
+const HOVER_BLUE = '#4a9eff';
+
 const hoverLinePlugin = {
   id: 'hoverLine',
   beforeDatasetsDraw(chart) {
@@ -499,7 +501,8 @@ const hoverLinePlugin = {
     chart.data.datasets.forEach((ds, i) => {
       if (i === chart._hoveredIdx) {
         ds.borderWidth = 4;
-        ds.borderColor = ds._origColor;
+        ds.borderColor = HOVER_BLUE;
+        ds.pointBackgroundColor = HOVER_BLUE;
       } else {
         ds.borderWidth = 1;
         ds.borderColor = ds._origColor === RED ? 'rgba(240,92,110,0.18)' : 'rgba(85,94,114,0.18)';
@@ -662,6 +665,7 @@ async function renderChart(tabName) {
       window._chartInst.data.datasets.forEach(ds => {
         ds.borderWidth = 1.5;
         ds.borderColor = ds._origColor;
+        ds.pointBackgroundColor = ds._origColor;
       });
       window._chartInst._hoveredIdx = null;
       window._chartInst.update('none');
