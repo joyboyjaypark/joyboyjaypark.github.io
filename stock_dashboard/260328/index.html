@@ -626,7 +626,10 @@ async function renderChart(tabName) {
       },
       onHover: (evt, elements, chart) => {
         const prev = chart._hoveredIdx;
-        const next = elements.length ? elements[0].datasetIndex : null;
+        // 회색선은 hover 무시 — 빨간선(_origColor===RED)만 반응
+        const candidate = elements.length ? elements[0].datasetIndex : null;
+        const next = (candidate !== null && chart.data.datasets[candidate]?._origColor === RED)
+          ? candidate : null;
         if (prev !== next) {
           if (next === null) {
             chart.data.datasets.forEach(ds => {
