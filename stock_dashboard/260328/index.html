@@ -158,6 +158,12 @@
       <input id="cnt-input" type="number" min="1" max="100" value="5">
       <label for="cnt-input">개 이상</label>
     </div>
+    <div class="ctrl-group">
+      <input type="checkbox" id="chk-rank">
+      <label for="chk-rank">최근</label>
+      <input id="rank-days-input" type="number" min="1" max="7" value="2">
+      <label for="rank-days-input">일 연속 순위 상승</label>
+    </div>
     <span id="rise-badge"></span>
   </div>
   <div id="chart-inner"><canvas id="chart-canvas"></canvas></div>
@@ -434,6 +440,16 @@ function isConsecNRise(vals, n) {
   return true;
 }
 
+function isConsecNRankRise(ranks, n) {
+  const nonNull = ranks.filter(v => v !== null);
+  if (nonNull.length < n + 1) return false;
+  const tail = nonNull.slice(-(n + 1));
+  for (let i = 1; i <= n; i++) {
+    if (tail[i] >= tail[i - 1]) return false; // 순위 숫자 감소 = 순위 상승
+  }
+  return true;
+}
+
 function isPctRise(vals, days, pct) {
   // 마지막 days+1개 값 중 유효한 값 기준으로 최근 days일간 누적 수익률 계산
   const nonNull = vals.filter(v => v !== null);
@@ -446,23 +462,26 @@ function isPctRise(vals, days, pct) {
 
 function applyRiseFilter() {
   if (!window._indVals || !window._chartInst) return;
-  const useConsec = document.getElementById('chk-consec').checked;
-  const usePct    = document.getElementById('chk-pct').checked;
-  const useCnt    = document.getElementById('chk-cnt').checked;
-  const n         = parseInt(document.getElementById('rise-input').value) || 2;
-  const pctDays   = parseInt(document.getElementById('pct-days-input').value) || 5;
-  const pctVal    = parseFloat(document.getElementById('pct-val-input').value) || 3;
-  const cntMin    = parseInt(document.getElementById('cnt-input').value) || 5;
+  const useConsec  = document.getElementById('chk-consec').checked;
+  const usePct     = document.getElementById('chk-pct').checked;
+  const useCnt     = document.getElementById('chk-cnt').checked;
+  const useRank    = document.getElementById('chk-rank').checked;
+  const n          = parseInt(document.getElementById('rise-input').value) || 2;
+  const pctDays    = parseInt(document.getElementById('pct-days-input').value) || 5;
+  const pctVal     = parseFloat(document.getElementById('pct-val-input').value) || 3;
+  const cntMin     = parseInt(document.getElementById('cnt-input').value) || 5;
+  const rankDays   = parseInt(document.getElementById('rank-days-input').value) || 2;
   const inds = Object.keys(window._indVals);
   let redCnt = 0;
   window._chartInst.data.datasets.forEach((ds, i) => {
     const vals = (window._indVals[inds[i]] || []);
     const nonNull = vals.filter(v => v !== null);
     let isRed = true;
-    if (!useConsec && !usePct && !useCnt) isRed = false;
+    if (!useConsec && !usePct && !useCnt && !useRank) isRed = false;
     if (useConsec && !isConsecNRise(nonNull, n)) isRed = false;
     if (usePct    && !isPctRise(nonNull, pctDays, pctVal)) isRed = false;
     if (useCnt    && (window._indCnts[inds[i]] || 0) < cntMin) isRed = false;
+    if (useRank   && !isConsecNRankRise((window._indRanks[inds[i]] || []), rankDays)) isRed = false;
     if (isRed) redCnt++;
     const color = isRed ? RED : GRAY;
     ds.borderColor = color;
@@ -483,11 +502,14 @@ const rightLabelPlugin = {
       const meta = chart.getDatasetMeta(i);
       if (!meta.visible || !meta.data.length) return;
       const pt = meta.data[meta.data.length - 1];
+      const lastDateIdx = meta.data.length - 1;
+      const rank = window._indRanks?.[ds.label]?.[lastDateIdx];
+      const rankStr = rank ? ` #${rank}위` : '';
       ctx.save();
       ctx.font = '11px sans-serif';
       ctx.fillStyle = ds.borderColor;
       ctx.textAlign = 'left';
-      ctx.fillText(ds.label, pt.x + 6, pt.y + 4);
+      ctx.fillText(ds.label + rankStr, pt.x + 6, pt.y + 4);
       ctx.restore();
     });
   }
@@ -568,20 +590,35 @@ async function renderChart(tabName) {
   window._indVals = indVals;
   window._indCnts = indCnts;
 
+  // 날짜별 업종 수익률 순위 계산 (1위 = 가장 높은 수익률)
+  const indRanks = {};
+  allInds.forEach(ind => { indRanks[ind] = new Array(valid.length).fill(null); });
+  valid.forEach((r, di) => {
+    const pairs = allInds
+      .map(ind => ({ ind, val: r.ret[ind] }))
+      .filter(x => x.val !== undefined && x.val !== null);
+    pairs.sort((a, b) => b.val - a.val);
+    pairs.forEach((x, ri) => { indRanks[x.ind][di] = ri + 1; });
+  });
+  window._indRanks = indRanks;
+
   const n = parseInt(document.getElementById('rise-input').value) || 2;
   const pctDays = parseInt(document.getElementById('pct-days-input').value) || 5;
   const pctVal  = parseFloat(document.getElementById('pct-val-input').value) || 3;
   const cntMin  = parseInt(document.getElementById('cnt-input').value) || 5;
+  const rankDays = parseInt(document.getElementById('rank-days-input').value) || 2;
   const useConsec = document.getElementById('chk-consec').checked;
   const usePct    = document.getElementById('chk-pct').checked;
   const useCnt    = document.getElementById('chk-cnt').checked;
+  const useRank   = document.getElementById('chk-rank').checked;
   const datasets = allInds.map(ind => {
     const nonNull = (indVals[ind] || []).filter(v => v !== null);
     let isRed = true;
-    if (!useConsec && !usePct && !useCnt) isRed = false;
+    if (!useConsec && !usePct && !useCnt && !useRank) isRed = false;
     if (useConsec && !isConsecNRise(nonNull, n)) isRed = false;
     if (usePct    && !isPctRise(nonNull, pctDays, pctVal)) isRed = false;
     if (useCnt    && (indCnts[ind] || 0) < cntMin) isRed = false;
+    if (useRank   && !isConsecNRankRise((indRanks[ind] || []), rankDays)) isRed = false;
     const color = isRed ? RED : GRAY;
     return {
       label: ind,
@@ -600,10 +637,10 @@ async function renderChart(tabName) {
   const redCnt = datasets.filter(ds => ds._origColor === RED).length;
   document.getElementById('rise-badge').innerHTML =
     '<span class="cnt-red">' + redCnt + '개 해당</span> / ' + (allInds.length - redCnt) + '개 회색';
-  ['rise-input','pct-days-input','pct-val-input','cnt-input'].forEach(id => {
+  ['rise-input','pct-days-input','pct-val-input','cnt-input','rank-days-input'].forEach(id => {
     document.getElementById(id).oninput = () => applyRiseFilter();
   });
-  ['chk-consec','chk-pct','chk-cnt'].forEach(id => {
+  ['chk-consec','chk-pct','chk-cnt','chk-rank'].forEach(id => {
     document.getElementById(id).onchange = () => applyRiseFilter();
   });
 
@@ -624,7 +661,9 @@ async function renderChart(tabName) {
             label: ctx => {
               const v = ctx.parsed.y;
               if (v === null) return '';
-              return ' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+              const rank = window._indRanks?.[ctx.dataset.label]?.[ctx.dataIndex];
+              const rankStr = rank ? ` (${rank}위)` : '';
+              return ' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v.toFixed(2) + '%' + rankStr;
             }
           }
         }
