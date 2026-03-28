@@ -436,36 +436,33 @@ async function renderChart(tabName) {
     return `${parseInt(ds.slice(2,4))}/${parseInt(ds.slice(4,6))}`;
   });
   const allInd = [...new Set(valid.flatMap(r => Object.keys(r.ind)))].sort();
-  const palette = [
-    '#4f8ef7','#29d98a','#f05c6e','#7c5cfc','#f7a44f',
-    '#4fd9f7','#f74fcc','#a8e63d','#f7d84f','#4ff799',
-    '#ff7f50','#9370db','#20b2aa','#ff6347','#4682b4',
-    '#32cd32','#ffa500','#ff69b4','#00ced1','#dc143c',
-    '#2e8b57','#8b008b','#ff8c00','#1e90ff','#adff2f'
-  ];
 
-  // 3일 연속 마이너스 여부 판정
-  function isConsec3Neg(vals) {
+  // 마지막 2연속 이전일 대비 같거나 상승 여부 판정
+  function isConsec2Rise(vals) {
     const nums = vals.filter(v => v != null);
     if (nums.length < 3) return false;
     const last3 = nums.slice(-3);
-    return last3.every(v => v < 0);
+    // last3[1] >= last3[0] AND last3[2] >= last3[1]
+    return last3[1] >= last3[0] && last3[2] >= last3[1];
   }
+
+  const RED = '#f05c6e';
+  const GRAY = '#555e72';
 
   const datasets = allInd.map((ind, i) => {
     const vals = valid.map(r => r.ind[ind] ?? null);
-    const gray = isConsec3Neg(vals);
-    const color = gray ? '#555e72' : palette[i % palette.length];
+    const rising = isConsec2Rise(vals);
+    const color = rising ? RED : GRAY;
     return {
       label: ind,
       data: vals,
       borderColor: color,
       backgroundColor: color,
       _baseColor: color,
-      _isGray: gray,
+      _isGray: !rising,
       pointRadius: 4,
       pointHoverRadius: 7,
-      borderWidth: gray ? 1 : 1.5,
+      borderWidth: rising ? 1.5 : 1,
       tension: 0.2,
       spanGaps: true,
     };
