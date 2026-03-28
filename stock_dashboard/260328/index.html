@@ -670,10 +670,9 @@ async function renderChart(tabName) {
       },
       onHover: (evt, elements, chart) => {
         const prev = chart._hoveredIdx;
-        // 회색선은 hover 무시 — 빨간선(_origColor===RED)만 반응
-        const candidate = elements.length ? elements[0].datasetIndex : null;
-        const next = (candidate !== null && chart.data.datasets[candidate]?._origColor === RED)
-          ? candidate : null;
+        // 회색선은 hover 무시 — 빨간선 중 가장 가까운 것만 반응
+        const redEl = elements.find(el => chart.data.datasets[el.datasetIndex]?._origColor === RED);
+        const next = redEl != null ? redEl.datasetIndex : null;
         if (prev !== next) {
           if (next === null) {
             chart.data.datasets.forEach(ds => {
