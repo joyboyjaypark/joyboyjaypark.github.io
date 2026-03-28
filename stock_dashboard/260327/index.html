@@ -168,9 +168,9 @@ function switchTab(name) {
 
 function calcSummaryRow(rows, cols, label) {
   const res = {};
-  res['종목명'] = label;
   cols.forEach((col, i) => {
-    if (i < 3) { res[col] = ''; return; }
+    if (i < 2) { res[col] = ''; return; }
+    if (col === '종목명') { res[col] = label; return; }
     if (TEXT_SET.has(col)) { res[col] = ''; return; }
     const vals = rows.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
     if (!vals.length) { res[col] = null; return; }
@@ -195,8 +195,8 @@ function summaryRowHtml(cols, data, rowCls) {
 
 function renderHeader(cols) {
   const top10    = RAW.slice(0, 10);
-  const allSum   = calcSummaryRow(RAW,   cols, RAW.length + '개 기업 총계');
-  const top10Sum = calcSummaryRow(top10, cols, '상위 10개 기업총계');
+  const allSum   = calcSummaryRow(RAW,   cols, RAW.length + '대 기업 총계');
+  const top10Sum = calcSummaryRow(top10, cols, '10대 기업 총계');
   document.getElementById('thead').innerHTML =
     summaryRowHtml(cols, top10Sum, 'top10-row') +
     summaryRowHtml(cols, allSum,   'all-row') +
