@@ -43,10 +43,14 @@
   .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
   .info-text{font-size:12px;color:var(--muted)}
   .updated{font-size:11px;color:var(--muted);margin-left:auto}
-  .tabs{
-    display:flex;flex-wrap:wrap;gap:6px;padding:10px 28px;
+  .tab-row{
+    display:flex;align-items:center;flex-wrap:nowrap;
     background:var(--surface);border-bottom:1px solid var(--border);
     position:sticky;top:117px;z-index:170;
+    padding:6px 28px;gap:8px;
+  }
+  .tabs{
+    display:flex;flex-wrap:wrap;gap:6px;flex:1;
   }
   .tab-btn{
     padding:5px 14px;border:1px solid var(--border);border-radius:20px;
@@ -141,7 +145,14 @@
   <span class="info-text" id="sort-info">컬럼 헤더를 클릭하면 정렬됩니다</span>
   <span class="updated">생성: 2026-03-28 23:21</span>
 </div>
-<div class="tabs" id="tabs"></div>
+<div class="tab-row">
+  <div class="tabs" id="tabs"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto">
+    <button id="nav-prev" class="nav-btn" disabled>◀ 이전일</button>
+    <span id="nav-date" class="nav-date-lbl"></span>
+    <button id="nav-next" class="nav-btn" disabled>다음일 ▶</button>
+  </div>
+</div>
 <div id="chart-area">
   <div id="chart-ctrl">
     <div class="ctrl-group">
@@ -170,11 +181,6 @@
       <label for="rank-days-input">일 연속 순위 상승</label>
     </div>
     <span id="rise-badge"></span>
-    <div class="ctrl-group" style="margin-left:auto;gap:8px">
-      <button id="nav-prev" class="nav-btn" disabled>◀ 이전일</button>
-      <span id="nav-date" class="nav-date-lbl"></span>
-      <button id="nav-next" class="nav-btn" disabled>다음일 ▶</button>
-    </div>
   </div>
   <div id="chart-inner"><canvas id="chart-canvas"></canvas></div>
 </div>
@@ -752,13 +758,15 @@ async function initDayNav() {
   ]);
   const prevBtn = document.getElementById('nav-prev');
   const nextBtn = document.getElementById('nav-next');
-  if (prevDs && prevBtn) { prevBtn.disabled=false; prevBtn.onclick=()=>{ window.location.href=basePath+'/'+prevDs+'/'; }; }
-  if (nextDs && nextBtn) { nextBtn.disabled=false; nextBtn.onclick=()=>{ window.location.href=basePath+'/'+nextDs+'/'; }; }
+  if (prevDs && prevBtn) { prevBtn.disabled=false; prevBtn.onclick=()=>{ window.location.href=basePath+'/'+prevDs+'/?tab='+encodeURIComponent(currentTab); }; }
+  if (nextDs && nextBtn) { nextBtn.disabled=false; nextBtn.onclick=()=>{ window.location.href=basePath+'/'+nextDs+'/?tab='+encodeURIComponent(currentTab); }; }
 }
 
 renderTabs();
 renderTable();
 document.getElementById('sort-info').textContent = '정렬: 시가총액(M$) ▼ 내림차순';
+const _tabParam = new URLSearchParams(window.location.search).get('tab');
+if (_tabParam && TABS_DEF[_tabParam]) switchTab(_tabParam);
 initDayNav();
 </script>
 </body>
