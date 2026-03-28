@@ -561,8 +561,7 @@ async function renderChart(tabName) {
       const resp = await fetch(url);
       if (!resp.ok) return null;
       const html = await resp.text();
-      const mx = html.match(/const RAW\s*=\s*(\[[\s\S]*?\]);\s*
-/);
+      const mx = html.match(/const RAW\s*=\s*(\[[\s\S]*?\]);\s*\n/);
       if (!mx) return null;
       return { date: dateStr, ...calcIndustryReturns(JSON.parse(mx[1])) };
     } catch(e) { return null; }
