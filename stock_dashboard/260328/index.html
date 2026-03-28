@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -93,6 +93,13 @@
   .table-wrapper::-webkit-scrollbar-track{background:var(--bg)}
   .table-wrapper::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
   .table-wrapper::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+  thead .summary-row td{background:#252a42;border-bottom:1px solid var(--border)}
+  thead .top10-row td{border-bottom:1px solid var(--accent2)}
+  thead .all-row td{border-bottom:2px solid var(--accent)}
+  td.summary-label{color:var(--accent);font-weight:700;font-size:11px;white-space:nowrap}
+  td.summary-cell{font-size:11.5px}
+  thead .summary-row:hover td{background:#2d3250!important}
+  thead td.sticky-col{position:sticky;z-index:110}
 </style>
 </head>
 <body>
@@ -122,6 +129,7 @@ const RAW      = [{"순위": 1, "티커": "NVDA", "종목명": "NVIDIA", "슈퍼
 const TABS_DEF = {"Overview": ["순위", "티커", "종목명", "슈퍼인베스터수", "홀드가격($)", "거래소", "국가", "섹터", "업종", "시가총액(M$)", "현재가($)", "PER(TTM)", "선행PER", "배당수익률(%)", "임직원수", "베타"], "Descriptive": ["순위", "티커", "종목명", "유통주식수(M)", "20일평균거래량", "52주변동폭(%)", "내부자보유(%)", "기관보유(%)", "애널리스트평점(1=강매수)", "연간배당금($)", "희석EPS(TTM$)", "배당성향(%)"], "Performance": ["순위", "티커", "종목명", "1주수익률(%)", "1개월수익률(%)", "3개월수익률(%)", "6개월수익률(%)", "YTD수익률(%)", "1년수익률(%)", "20일이평대비(%)", "50일이평대비(%)", "200일이평대비(%)", "3년수익률(%)", "5년수익률(%)", "10년수익률(%)", "20년수익률(%)", "30년수익률(%)", "40년수익률(%)", "50년수익률(%)"], "Valuation": ["순위", "티커", "종목명", "PER(TTM)", "선행PER", "PEG비율", "PSR(주가매출비율)", "PBR(주가순자산비율)", "PCR(주가현금흐름비율)"], "Profitability": ["순위", "티커", "종목명", "영업이익률(%)", "순이익률(%)", "세전이익률(%)", "ROE(%)", "ROA(%)", "유동비율", "당좌비율", "재고자산회전율", "부채비율(D/E)"], "Revenue & EPS": ["순위", "티커", "종목명", "매출액-최근FY(M$)", "순이익-최근FY(M$)", "매출성장률QoQ(%)", "매출성장률5년(%)", "EPS-최근FY($)", "EPS예상-FY+1($)", "EPS예상-FY+2($)", "EPS-최근분기($)", "EPS예상-현분기($)", "EPS서프라이즈금액($)", "EPS서프라이즈율(%)", "EPS성장률-올해(%)", "EPS성장률-내년(%)", "EPS성장률QoQ(%)", "EPS성장률5년(%)"], "전체": ["순위", "티커", "종목명", "슈퍼인베스터수", "홀드가격($)", "거래소", "국가", "섹터", "업종", "세부업종(Zacks)", "시가총액(M$)", "현재가($)", "PER(TTM)", "선행PER", "배당수익률(%)", "임직원수", "베타", "유통주식수(M)", "20일평균거래량", "52주변동폭(%)", "내부자보유(%)", "기관보유(%)", "애널리스트평점(1=강매수)", "연간배당금($)", "희석EPS(TTM$)", "배당성향(%)", "1주수익률(%)", "1개월수익률(%)", "3개월수익률(%)", "6개월수익률(%)", "YTD수익률(%)", "1년수익률(%)", "20일이평대비(%)", "50일이평대비(%)", "200일이평대비(%)", "3년수익률(%)", "5년수익률(%)", "10년수익률(%)", "20년수익률(%)", "30년수익률(%)", "40년수익률(%)", "50년수익률(%)", "PEG비율", "PSR(주가매출비율)", "PBR(주가순자산비율)", "PCR(주가현금흐름비율)", "부채비율(D/E)", "영업이익률(%)", "순이익률(%)", "세전이익률(%)", "ROE(%)", "ROA(%)", "유동비율", "당좌비율", "재고자산회전율", "매출액-최근FY(M$)", "순이익-최근FY(M$)", "매출성장률QoQ(%)", "매출성장률5년(%)", "EPS-최근FY($)", "EPS예상-FY+1($)", "EPS예상-FY+2($)", "EPS-최근분기($)", "EPS예상-현분기($)", "EPS서프라이즈금액($)", "EPS서프라이즈율(%)", "EPS성장률-올해(%)", "EPS성장률-내년(%)", "EPS성장률QoQ(%)", "EPS성장률5년(%)"]};
 const PCT_SET  = new Set(["ROE(%)", "52주변동폭(%)", "1년수익률(%)", "20년수익률(%)", "3년수익률(%)", "영업이익률(%)", "매출성장률5년(%)", "EPS성장률-올해(%)", "EPS성장률5년(%)", "순이익률(%)", "기관보유(%)", "20일이평대비(%)", "YTD수익률(%)", "30년수익률(%)", "배당수익률(%)", "1주수익률(%)", "6개월수익률(%)", "3개월수익률(%)", "ROA(%)", "내부자보유(%)", "매출성장률QoQ(%)", "1개월수익률(%)", "5년수익률(%)", "EPS성장률-내년(%)", "EPS성장률QoQ(%)", "세전이익률(%)", "40년수익률(%)", "배당성향(%)", "EPS서프라이즈율(%)", "200일이평대비(%)", "50년수익률(%)", "10년수익률(%)", "50일이평대비(%)"]);
 const TEXT_SET = new Set(["티커", "종목명", "섹터", "세부업종(Zacks)", "순위", "업종", "국가", "거래소"]);
+const SUM_COLS  = new Set(['시가총액(M\$)', '임직원수', '20일평균거래량', '매출액-최근FY(M\$)', '순이익-최근FY(M\$)']);
 
 let currentTab = Object.keys(TABS_DEF)[0];
 let sortCol = '시가총액(M$)', sortDir = -1;
@@ -158,11 +166,46 @@ function switchTab(name) {
   renderTabs(); renderTable();
 }
 
+function calcSummaryRow(rows, cols, label) {
+  const res = {};
+  res['종목명'] = label;
+  cols.forEach((col, i) => {
+    if (i < 3) { res[col] = ''; return; }
+    if (TEXT_SET.has(col)) { res[col] = ''; return; }
+    const vals = rows.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+    if (!vals.length) { res[col] = null; return; }
+    res[col] = SUM_COLS.has(col)
+      ? vals.reduce((a, b) => a + b, 0)
+      : vals.reduce((a, b) => a + b, 0) / vals.length;
+  });
+  return res;
+}
+
+function summaryRowHtml(cols, data, rowCls) {
+  return '<tr class="summary-row ' + rowCls + '">' + cols.map((c, i) => {
+    const sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '';
+    const base = sticky + ' summary-cell';
+    if (c === '순위' || c === '티커') return `<td class="${base}"><span class="na">—</span></td>`;
+    if (c === '종목명') return `<td class="${base} summary-label">${data['종목명']}</td>`;
+    const v = data[c];
+    if (v === '' || v === null || v === undefined) return `<td class="${base}"><span class="na">—</span></td>`;
+    return `<td class="${base}">${fmt(v, c)}</td>`;
+  }).join('') + '</tr>';
+}
+
 function renderHeader(cols) {
-  document.getElementById('thead').innerHTML = '<tr>' + cols.map((c, i) => {
-    let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '';
-    const sc = c === sortCol ? (sortDir===1?' sort-asc':' sort-desc') : '';
-    return `<th class="${sticky}${sc}" onclick="sortBy('${c.replace(/'/g,"\'")}')"> ${c}</th>`;
+  const top10    = RAW.slice(0, 10);
+  const allSum   = calcSummaryRow(RAW,   cols, RAW.length + '개 기업 총계');
+  const top10Sum = calcSummaryRow(top10, cols, '상위 10개 기업총계');
+  document.getElementById('thead').innerHTML =
+    summaryRowHtml(cols, top10Sum, 'top10-row') +
+    summaryRowHtml(cols, allSum,   'all-row') +
+    '<tr>' + cols.map((c, i) => {
+      let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '';
+      const sc = c === sortCol ? (sortDir===1?' sort-asc':' sort-desc') : '';
+      return `<th class="${sticky}${sc}" onclick="sortBy('${c.replace(/'/g,"\\'")}')">${c}</th>`;
+    }).join('') + '</tr>';
+}${sc}" onclick="sortBy('${c.replace(/'/g,"\'")}')"> ${c}</th>`;
   }).join('') + '</tr>';
 }
 
