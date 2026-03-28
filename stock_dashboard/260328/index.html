@@ -152,6 +152,12 @@
       <input id="pct-val-input" type="number" min="0" max="100" step="0.5" value="3">
       <label for="pct-val-input">% 이상 상승</label>
     </div>
+    <div class="ctrl-group">
+      <input type="checkbox" id="chk-cnt">
+      <label for="chk-cnt">종목수</label>
+      <input id="cnt-input" type="number" min="1" max="100" value="5">
+      <label for="cnt-input">개 이상</label>
+    </div>
     <span id="rise-badge"></span>
   </div>
   <div id="chart-inner"><canvas id="chart-canvas"></canvas></div>
@@ -411,9 +417,10 @@ function calcIndustryReturns(raw) {
       map[ind].push(v);
     }
   });
-  const result = {};
+  const result = {ret: {}, cnt: {}};
   Object.entries(map).forEach(([k, arr]) => {
-    result[k] = arr.reduce((a, b) => a + b, 0) / arr.length;
+    result.ret[k] = arr.reduce((a, b) => a + b, 0) / arr.length;
+    result.cnt[k] = arr.length;
   });
   return result;
 }
@@ -441,18 +448,21 @@ function applyRiseFilter() {
   if (!window._indVals || !window._chartInst) return;
   const useConsec = document.getElementById('chk-consec').checked;
   const usePct    = document.getElementById('chk-pct').checked;
+  const useCnt    = document.getElementById('chk-cnt').checked;
   const n         = parseInt(document.getElementById('rise-input').value) || 2;
   const pctDays   = parseInt(document.getElementById('pct-days-input').value) || 5;
   const pctVal    = parseFloat(document.getElementById('pct-val-input').value) || 3;
+  const cntMin    = parseInt(document.getElementById('cnt-input').value) || 5;
   const inds = Object.keys(window._indVals);
   let redCnt = 0;
   window._chartInst.data.datasets.forEach((ds, i) => {
     const vals = (window._indVals[inds[i]] || []);
     const nonNull = vals.filter(v => v !== null);
     let isRed = true;
-    if (!useConsec && !usePct) isRed = false;
+    if (!useConsec && !usePct && !useCnt) isRed = false;
     if (useConsec && !isConsecNRise(nonNull, n)) isRed = false;
     if (usePct    && !isPctRise(nonNull, pctDays, pctVal)) isRed = false;
+    if (useCnt    && (window._indCnts[inds[i]] || 0) < cntMin) isRed = false;
     if (isRed) redCnt++;
     const color = isRed ? RED : GRAY;
     ds.borderColor = color;
@@ -532,7 +542,7 @@ async function renderChart(tabName) {
       const html = await resp.text();
       const mx = html.match(/const RAW\s*=\s*(\[[\s\S]*?\]);\s*\n/);
       if (!mx) return null;
-      return { date: dateStr, ret: calcIndustryReturns(JSON.parse(mx[1])) };
+      return { date: dateStr, ...calcIndustryReturns(JSON.parse(mx[1])) };
     } catch(e) { return null; }
   }));
 
@@ -544,24 +554,30 @@ async function renderChart(tabName) {
     return parseInt(s.substring(2, 4)) + '/' + parseInt(s.substring(4, 6));
   });
 
-  const allInds = Object.keys(calcIndustryReturns(RAW));
+  const allInds = Object.keys(calcIndustryReturns(RAW).ret);
   const indVals = {};
+  const indCnts = {};
   allInds.forEach(ind => {
     indVals[ind] = valid.map(r => r.ret[ind] !== undefined ? r.ret[ind] : null);
+    indCnts[ind] = valid[valid.length - 1]?.cnt[ind] || 0;
   });
   window._indVals = indVals;
+  window._indCnts = indCnts;
 
   const n = parseInt(document.getElementById('rise-input').value) || 2;
   const pctDays = parseInt(document.getElementById('pct-days-input').value) || 5;
   const pctVal  = parseFloat(document.getElementById('pct-val-input').value) || 3;
+  const cntMin  = parseInt(document.getElementById('cnt-input').value) || 5;
   const useConsec = document.getElementById('chk-consec').checked;
   const usePct    = document.getElementById('chk-pct').checked;
+  const useCnt    = document.getElementById('chk-cnt').checked;
   const datasets = allInds.map(ind => {
     const nonNull = (indVals[ind] || []).filter(v => v !== null);
     let isRed = true;
-    if (!useConsec && !usePct) isRed = false;
+    if (!useConsec && !usePct && !useCnt) isRed = false;
     if (useConsec && !isConsecNRise(nonNull, n)) isRed = false;
     if (usePct    && !isPctRise(nonNull, pctDays, pctVal)) isRed = false;
+    if (useCnt    && (indCnts[ind] || 0) < cntMin) isRed = false;
     const color = isRed ? RED : GRAY;
     return {
       label: ind,
@@ -580,10 +596,10 @@ async function renderChart(tabName) {
   const redCnt = datasets.filter(ds => ds._origColor === RED).length;
   document.getElementById('rise-badge').innerHTML =
     '<span class="cnt-red">' + redCnt + '개 해당</span> / ' + (allInds.length - redCnt) + '개 회색';
-  ['rise-input','pct-days-input','pct-val-input'].forEach(id => {
+  ['rise-input','pct-days-input','pct-val-input','cnt-input'].forEach(id => {
     document.getElementById(id).oninput = () => applyRiseFilter();
   });
-  ['chk-consec','chk-pct'].forEach(id => {
+  ['chk-consec','chk-pct','chk-cnt'].forEach(id => {
     document.getElementById(id).onchange = () => applyRiseFilter();
   });
 
