@@ -100,6 +100,13 @@
   td.summary-cell{font-size:11.5px}
   thead .summary-row:hover td{background:#2d3250!important}
   thead td.sticky-col{position:sticky;z-index:110}
+  .expand-btn{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:700;line-height:1;background:transparent;transition:all .15s;user-select:none}
+  .expand-btn:hover{background:var(--accent);color:#fff}
+  tr.sector-child td{background:#151828!important;font-size:12px}
+  tr.sector-child td.sticky-col{background:#151828!important}
+  tr.sector-child:hover td{background:#1e2240!important}
+  tr.sector-child td.col1{color:var(--accent);font-weight:700}
+  tr.sector-child td.ticker-indent{padding-left:32px!important}
 </style>
 </head>
 <body>
@@ -136,6 +143,8 @@ let sortCol = '시가총액(M$)', sortDir = -1;
 let filtered = [...RAW];
 let sectorFiltered = [];
 
+const sectorExpanded = new Set();
+
 function buildSectorRows() {
   const cols = TABS_DEF['섹터'] || [];
   const groups = {};
@@ -154,6 +163,7 @@ function buildSectorRows() {
         ? vals.reduce((a,b)=>a+b,0)
         : vals.reduce((a,b)=>a+b,0)/vals.length) : null;
     });
+    row._stocks = [...recs].sort((a,b)=>(parseFloat(b['시가총액(M$)'])||0)-(parseFloat(a['시가총액(M$)'])||0));
     return row;
   });
   rows.sort((a,b)=>(parseFloat(b['시가총액(M$)'])||0)-(parseFloat(a['시가총액(M$)'])||0));
@@ -161,6 +171,16 @@ function buildSectorRows() {
   return rows;
 }
 if (TABS_DEF['섹터']) sectorFiltered = buildSectorRows();
+
+function toggleSector(sectorName) {
+  if (sectorExpanded.has(sectorName)) {
+    sectorExpanded.delete(sectorName);
+  } else {
+    sectorExpanded.add(sectorName);
+  }
+  const cols = TABS_DEF['섹터'];
+  renderRows(cols, sectorFiltered);
+}
 
 function fmt(val, col) {
   if (val === null || val === undefined || val === '') return '<span class="na">—</span>';
@@ -247,14 +267,43 @@ function renderRows(cols, rows) {
     return;
   }
   const isSector = currentTab === '섹터';
-  document.getElementById('tbody').innerHTML = rows.map(row =>
-    '<tr>' + cols.map((c, i) => {
+  const html = [];
+  rows.forEach(row => {
+    const sectorName = isSector ? row['종목명'] : null;
+    const isExpanded = isSector && sectorExpanded.has(sectorName);
+    const trParts = cols.map((c, i) => {
       let sticky = isSector
         ? (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col2' : '')
         : (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '');
+      if (isSector && c === '순위') {
+        const btn = `<span class="expand-btn" onclick="toggleSector('${sectorName.replace(/'/g,"\'")}')">\${isExpanded ? '−' : '+'}</span>`;
+        return `<td class="${sticky}" style="text-align:center">${row[c]} ${btn}</td>`;
+      }
+      if (isSector && c === '종목명') {
+        return `<td class="${sticky} summary-label">${fmt(row[c], c)}</td>`;
+      }
       return `<td class="${sticky}">${fmt(row[c], c)}</td>`;
-    }).join('') + '</tr>'
-  ).join('');
+    }).join('');
+    html.push(`<tr>${trParts}</tr>`);
+
+    if (isExpanded && row._stocks) {
+      const stockCols = TABS_DEF['섹터'];
+      row._stocks.forEach((stock, si) => {
+        const childParts = stockCols.map((c, i) => {
+          let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col2' : '';
+          if (c === '순위') return `<td class="${sticky} ticker-indent" style="color:var(--muted);text-align:center">${si+1}</td>`;
+          if (c === '종목명') {
+            const ticker = stock['티커'] || '';
+            const name   = stock['종목명'] || '';
+            return `<td class="${sticky} ticker-indent"><span style="color:var(--accent);font-weight:700;margin-right:6px">${ticker}</span>${name}</td>`;
+          }
+          return `<td class="${sticky}">${fmt(stock[c], c)}</td>`;
+        }).join('');
+        html.push(`<tr class="sector-child">${childParts}</tr>`);
+      });
+    }
+  });
+  document.getElementById('tbody').innerHTML = html.join('');
 }
 
 function renderTable() {
