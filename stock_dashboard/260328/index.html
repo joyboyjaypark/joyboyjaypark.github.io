@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -107,8 +107,15 @@
   tr.sector-child:hover td{background:#5c1515!important}
   tr.sector-child td.col1{color:var(--accent);font-weight:700}
   tr.sector-child td.ticker-indent{padding-left:32px!important}
-  #chart-area{display:none;padding:20px 28px;background:var(--surface);border-bottom:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 200px)}
-  #chart-inner{position:relative;width:100%}
+  #chart-area{display:none;padding:0;background:var(--surface);border-bottom:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 200px)}
+  #chart-ctrl{padding:10px 28px;display:flex;align-items:center;gap:10px;background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+  #chart-ctrl label{font-size:12px;color:var(--muted);white-space:nowrap}
+  #rise-input{width:60px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;text-align:center;outline:none;transition:border-color .2s}
+  #rise-input:focus{border-color:var(--accent)}
+  #rise-badge{font-size:12px;color:var(--muted);margin-left:4px}
+  #rise-badge .cnt-red{color:var(--red);font-weight:600}
+  #rise-badge .cnt-gray{color:var(--muted)}
+  #chart-inner{position:relative;width:100%;padding:20px 28px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -131,7 +138,14 @@
   <span class="updated">생성: 2026-03-28 19:15</span>
 </div>
 <div class="tabs" id="tabs"></div>
-<div id="chart-area"><div id="chart-inner"><canvas id="chart-canvas"></canvas></div></div>
+<div id="chart-area">
+  <div id="chart-ctrl">
+    <label for="rise-input">연속 상승 기준일수 (N일):</label>
+    <input id="rise-input" type="number" min="1" max="7" value="2">
+    <span id="rise-badge"></span>
+  </div>
+  <div id="chart-inner"><canvas id="chart-canvas"></canvas></div>
+</div>
 <div class="table-wrapper">
   <table id="mainTable"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
 </div>
@@ -389,11 +403,46 @@ function calcIndustryReturns(raw) {
   return result;
 }
 
+function isConsecNRise(vals, n) {
+  const nums = vals.filter(v => v != null);
+  if (nums.length < n + 1) return false;
+  const tail = nums.slice(-(n + 1));
+  for (let i = 1; i <= n; i++) {
+    if (tail[i] < tail[i - 1]) return false;
+  }
+  return true;
+}
+
+const RED = '#f05c6e';
+const GRAY = '#555e72';
+
+function applyRiseFilter() {
+  if (!window._chartInst || !window._indVals) return;
+  const n = Math.max(1, parseInt(document.getElementById('rise-input').value) || 2);
+  let redCnt = 0;
+  window._chartInst.data.datasets.forEach(ds => {
+    const rising = isConsecNRise(window._indVals[ds.label] || [], n);
+    const color = rising ? RED : GRAY;
+    ds._baseColor = color;
+    ds._isGray = !rising;
+    ds.borderColor = color;
+    ds.backgroundColor = color;
+    ds.borderWidth = rising ? 1.5 : 1;
+    if (rising) redCnt++;
+  });
+  const total = window._chartInst.data.datasets.length;
+  const badge = document.getElementById('rise-badge');
+  if (badge) badge.innerHTML =
+    '<span class="cnt-red">' + redCnt + '개 상승</span> / <span class="cnt-gray">' + (total - redCnt) + '개 회색</span>';
+  window._chartInst.update('none');
+}
+
 async function renderChart(tabName) {
   const inner = document.getElementById('chart-inner');
   inner.style.height = '200px';
   inner.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8890a8;font-size:13px">데이터 로딩 중…</div>';
   if (window._chartInst) { window._chartInst.destroy(); window._chartInst = null; }
+  window._indVals = null;
 
   const pathParts = window.location.pathname.split('/');
   const currentDs = pathParts.find(p => /^\d{6}$/.test(p));
@@ -415,7 +464,7 @@ async function renderChart(tabName) {
   const results = await Promise.all(dateStrings.map(async ds => {
     if (ds === currentDs) return {ds, ind: calcIndustryReturns(RAW)};
     try {
-      const resp = await fetch(`../${ds}/index.html`);
+      const resp = await fetch('../' + ds + '/index.html');
       if (!resp.ok) return null;
       const text = await resp.text();
       const ri = text.indexOf('const RAW');
@@ -433,25 +482,19 @@ async function renderChart(tabName) {
 
   const labels = valid.map(r => {
     const ds = r.ds;
-    return `${parseInt(ds.slice(2,4))}/${parseInt(ds.slice(4,6))}`;
+    return parseInt(ds.slice(2,4)) + '/' + parseInt(ds.slice(4,6));
   });
   const allInd = [...new Set(valid.flatMap(r => Object.keys(r.ind)))].sort();
 
-  // 마지막 2연속 이전일 대비 같거나 상승 여부 판정
-  function isConsec2Rise(vals) {
-    const nums = vals.filter(v => v != null);
-    if (nums.length < 3) return false;
-    const last3 = nums.slice(-3);
-    // last3[1] >= last3[0] AND last3[2] >= last3[1]
-    return last3[1] >= last3[0] && last3[2] >= last3[1];
-  }
+  const indVals = {};
+  allInd.forEach(ind => { indVals[ind] = valid.map(r => r.ind[ind] ?? null); });
+  window._indVals = indVals;
 
-  const RED = '#f05c6e';
-  const GRAY = '#555e72';
+  const initN = Math.max(1, parseInt(document.getElementById('rise-input').value) || 2);
 
-  const datasets = allInd.map((ind, i) => {
-    const vals = valid.map(r => r.ind[ind] ?? null);
-    const rising = isConsec2Rise(vals);
+  const datasets = allInd.map(ind => {
+    const vals = indVals[ind];
+    const rising = isConsecNRise(vals, initN);
     const color = rising ? RED : GRAY;
     return {
       label: ind,
@@ -481,10 +524,9 @@ async function renderChart(tabName) {
       chart.data.datasets.forEach((ds, i) => {
         const isHovered = (i === _hoveredIdx);
         ds.borderWidth = isHovered ? 4 : (ds._isGray ? 0.7 : 0.8);
-        ds.borderColor = isHovered ? ds._baseColor : (ds._isGray ? '#555e72' : ds._baseColor + '55');
-        ds.backgroundColor = isHovered ? ds._baseColor : (ds._isGray ? '#555e72' : ds._baseColor + '55');
+        ds.borderColor = isHovered ? ds._baseColor : (ds._isGray ? GRAY : ds._baseColor + '55');
+        ds.backgroundColor = isHovered ? ds._baseColor : (ds._isGray ? GRAY : ds._baseColor + '55');
         ds.pointRadius = isHovered ? 5 : 2;
-        ds.zOrder = isHovered ? 999 : 0;
       });
     }
   };
@@ -534,7 +576,7 @@ async function renderChart(tabName) {
           filter: item => item.datasetIndex === _hoveredIdx,
           callbacks: {
             label: ctx => ctx.parsed.y != null
-              ? ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`
+              ? ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y >= 0 ? '+' : '') + ctx.parsed.y.toFixed(2) + '%'
               : null
           }
         }
@@ -562,16 +604,12 @@ async function renderChart(tabName) {
   });
 
   canvas.addEventListener('mouseleave', () => {
-    if (_hoveredIdx !== null) {
-      _hoveredIdx = null;
-      window._chartInst.draw();
-    }
+    if (_hoveredIdx !== null) { _hoveredIdx = null; window._chartInst.draw(); }
   });
-}
 
-renderTabs();
-renderTable();
-document.getElementById('sort-info').textContent = '정렬: 시가총액(M$) ▼ 내림차순';
+  applyRiseFilter();
+  document.getElementById('rise-input').oninput = () => applyRiseFilter();
+}
 </script>
 </body>
 </html>
