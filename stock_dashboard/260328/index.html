@@ -374,46 +374,148 @@ function applyFilter() {
   renderTable();
 }
 
-function renderChart(tabName) {
-  const cfg = CHART_TABS[tabName];
-  const srcRows = buildGroupRows(cfg.source);
-  const col = cfg.col;
-  const data = srcRows
-    .map(r => ({label: r['종목명'], val: parseFloat(r[col])}))
-    .filter(d => !isNaN(d.val))
-    .sort((a, b) => b.val - a.val);
-  document.getElementById('chart-inner').style.height = Math.max(400, data.length * 28 + 60) + 'px';
-  const canvas = document.getElementById('chart-canvas');
-  if (window._chartInst) window._chartInst.destroy();
-  window._chartInst = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => d.label),
-      datasets: [{
-        data: data.map(d => d.val),
-        backgroundColor: data.map(d => d.val >= 0 ? 'rgba(41,217,138,0.65)' : 'rgba(240,92,110,0.65)'),
-        borderColor: data.map(d => d.val >= 0 ? '#29d98a' : '#f05c6e'),
-        borderWidth: 1, borderRadius: 3,
-      }]
-    },
+function calcIndustryReturns(raw) {
+  const groups = {};
+  raw.forEach(r => {
+    const ind = r['업종'] || '미분류';
+    if (!groups[ind]) groups[ind] = [];
+    const v = parseFloat(r['1주수익률(%)']);
+    if (!isNaN(v)) groups[ind].push(v);
+  });
+  const result = {};
+  Object.entries(groups).forEach(([k, vals]) => {
+    result[k] = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+  });
+  return result;
+}
+
+async function renderChart(tabName) {
+  const inner = document.getElementById('chart-inner');
+  inner.style.height = '200px';
+  inner.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8890a8;font-size:13px">데이터 로딩 중…</div>';
+  if (window._chartInst) { window._chartInst.destroy(); window._chartInst = null; }
+
+  const pathParts = window.location.pathname.split('/');
+  const currentDs = pathParts.find(p => /^\d{6}$/.test(p));
+  if (!currentDs) { inner.textContent = '날짜를 인식할 수 없습니다.'; return; }
+
+  const dateStrings = [];
+  const y0 = 2000 + parseInt(currentDs.slice(0,2));
+  const m0 = parseInt(currentDs.slice(2,4)) - 1;
+  const d0 = parseInt(currentDs.slice(4,6));
+  let cur = new Date(y0, m0, d0);
+  for (let i = 0; i < 7; i++) {
+    const ds = String(cur.getFullYear()).slice(2) +
+               String(cur.getMonth()+1).padStart(2,'0') +
+               String(cur.getDate()).padStart(2,'0');
+    dateStrings.unshift(ds);
+    cur.setDate(cur.getDate() - 1);
+  }
+
+  const results = await Promise.all(dateStrings.map(async ds => {
+    if (ds === currentDs) return {ds, ind: calcIndustryReturns(RAW)};
+    try {
+      const resp = await fetch(`../${ds}/index.html`);
+      if (!resp.ok) return null;
+      const text = await resp.text();
+      const ri = text.indexOf('const RAW');
+      if (ri < 0) return null;
+      const si = text.indexOf('[', ri);
+      const tabsIdx = text.indexOf('\nconst TABS_DEF', si);
+      if (tabsIdx < 0) return null;
+      const semiIdx = text.lastIndexOf(';', tabsIdx);
+      return {ds, ind: calcIndustryReturns(JSON.parse(text.slice(si, semiIdx)))};
+    } catch(e) { return null; }
+  }));
+
+  const valid = results.filter(Boolean).sort((a,b) => a.ds.localeCompare(b.ds));
+  if (!valid.length) { inner.textContent = '데이터를 불러올 수 없습니다.'; return; }
+
+  const labels = valid.map(r => {
+    const ds = r.ds;
+    return `${parseInt(ds.slice(2,4))}/${parseInt(ds.slice(4,6))}`;
+  });
+  const allInd = [...new Set(valid.flatMap(r => Object.keys(r.ind)))].sort();
+  const palette = [
+    '#4f8ef7','#29d98a','#f05c6e','#7c5cfc','#f7a44f',
+    '#4fd9f7','#f74fcc','#a8e63d','#f7d84f','#4ff799',
+    '#ff7f50','#9370db','#20b2aa','#ff6347','#4682b4',
+    '#32cd32','#ffa500','#ff69b4','#00ced1','#dc143c',
+    '#2e8b57','#8b008b','#ff8c00','#1e90ff','#adff2f'
+  ];
+
+  const datasets = allInd.map((ind, i) => ({
+    label: ind,
+    data: valid.map(r => r.ind[ind] ?? null),
+    borderColor: palette[i % palette.length],
+    backgroundColor: palette[i % palette.length],
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    borderWidth: 1.5,
+    tension: 0.2,
+    spanGaps: true,
+  }));
+
+  const chartHeight = Math.max(600, allInd.length * 20 + 120);
+  inner.style.height = chartHeight + 'px';
+  inner.innerHTML = '<canvas id="chart-canvas"></canvas>';
+
+  const rightLabelPlugin = {
+    id: 'rightLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.data.datasets.forEach((ds, i) => {
+        const meta = chart.getDatasetMeta(i);
+        if (!meta.visible) return;
+        let lastPt = null, lastIdx = -1;
+        for (let j = meta.data.length - 1; j >= 0; j--) {
+          if (ds.data[j] != null) { lastPt = meta.data[j]; lastIdx = j; break; }
+        }
+        if (!lastPt) return;
+        ctx.save();
+        ctx.font = '10px "Segoe UI",system-ui,sans-serif';
+        ctx.fillStyle = ds.borderColor;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ds.label, lastPt.x + 8, lastPt.y);
+        ctx.restore();
+      });
+    }
+  };
+
+  window._chartInst = new Chart(document.getElementById('chart-canvas'), {
+    type: 'line',
+    data: { labels, datasets },
     options: {
-      indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { right: 180, top: 10, bottom: 10 } },
       plugins: {
-        legend: {display: false},
-        tooltip: {callbacks: { label: ctx => ` ${ctx.parsed.x >= 0 ? '+' : ''}${ctx.parsed.x.toFixed(2)}%` }}
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          callbacks: {
+            label: ctx => ctx.parsed.y != null
+              ? ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`
+              : null
+          }
+        }
       },
       scales: {
         x: {
-          ticks: {color:'#8890a8', callback: v => v+'%'},
-          grid: {color:'rgba(46,51,71,0.6)'},
-          border: {color:'#2e3347'},
-          title: {display:true, text:'1주수익률 (%)', color:'#8890a8', font:{size:11}}
+          ticks: { color: '#8890a8', font: { size: 11 } },
+          grid: { color: 'rgba(46,51,71,0.6)' },
+          border: { color: '#2e3347' }
         },
-        y: {ticks: {color:'#e4e6f0', font:{size:11}}, grid: {display:false}}
+        y: {
+          ticks: { color: '#8890a8', callback: v => v+'%', font: { size: 11 } },
+          grid: { color: 'rgba(46,51,71,0.6)' },
+          border: { color: '#2e3347' },
+          title: { display: true, text: '1주수익률 (%)', color: '#8890a8', font: { size: 11 } }
+        }
       }
-    }
+    },
+    plugins: [rightLabelPlugin]
   });
 }
 
