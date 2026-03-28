@@ -632,6 +632,8 @@ async function renderChart(tabName) {
       _origColor: color,
       pointBackgroundColor: color,
       borderWidth: 1.5,
+      hoverBorderWidth: 1.5,
+      hoverBorderColor: color,
       pointRadius: 3,
       pointHoverRadius: isRed ? 5 : 3,
       tension: 0.3,
@@ -693,6 +695,18 @@ async function renderChart(tabName) {
             chart.data.datasets.forEach(ds => {
               ds.borderWidth = 1.5;
               ds.borderColor = ds._origColor;
+            });
+          } else {
+            chart.data.datasets.forEach((ds, i) => {
+              if (i === next) {
+                ds.borderWidth = 3;
+                ds.borderColor = RED;
+              } else {
+                ds.borderWidth = 1;
+                ds.borderColor = ds._origColor === RED
+                  ? 'rgba(255,99,72,0.3)'
+                  : 'rgba(100,100,100,0.2)';
+              }
             });
           }
           chart._hoveredIdx = next;
