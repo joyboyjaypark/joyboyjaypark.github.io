@@ -298,7 +298,7 @@ function renderRows(cols, rows) {
       row._stocks.forEach((stock, si) => {
         const childParts = stockCols.map((c, i) => {
           let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : '';
-          if (c === '순위') return `<td class="${sticky} ticker-indent" style="color:var(--muted);text-align:center">${si+1}</td>`;
+          if (c === '순위') return `<td class="${sticky} ticker-indent" style="color:var(--muted);text-align:center">${stock['순위'] ?? si+1}</td>`;
           if (c === '종목명') {
             const ticker = stock['티커'] || '';
             const name   = stock['종목명'] || '';
