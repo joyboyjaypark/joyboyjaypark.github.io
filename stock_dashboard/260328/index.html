@@ -115,6 +115,11 @@
   .ctrl-group label{cursor:pointer;user-select:none;white-space:nowrap}
   #rise-badge .cnt-red{color:var(--red);font-weight:600}
   #chart-inner{position:relative;width:100%;padding:20px 28px}
+  .nav-btn{padding:5px 14px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s}
+  .nav-btn:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .nav-btn:not(:disabled):hover{background:var(--accent);color:#fff}
+  .nav-btn:disabled{opacity:0.35;cursor:default}
+  .nav-date-lbl{font-size:12px;color:var(--text);font-weight:600;min-width:80px;text-align:center}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -165,6 +170,11 @@
       <label for="rank-days-input">일 연속 순위 상승</label>
     </div>
     <span id="rise-badge"></span>
+    <div class="ctrl-group" style="margin-left:auto;gap:8px">
+      <button id="nav-prev" class="nav-btn" disabled>◀ 이전일</button>
+      <span id="nav-date" class="nav-date-lbl"></span>
+      <button id="nav-next" class="nav-btn" disabled>다음일 ▶</button>
+    </div>
   </div>
   <div id="chart-inner"><canvas id="chart-canvas"></canvas></div>
 </div>
@@ -714,9 +724,42 @@ async function renderChart(tabName) {
   });
 }
 
+async function initDayNav() {
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const idx = pathParts.findIndex(p => /^\d{6}$/.test(p));
+  if (idx < 0) return;
+  const thisDate = pathParts[idx];
+  const basePath = window.location.pathname.replace(/\/\d{6}\/.*$/, '');
+  const y = 2000 + parseInt(thisDate.substring(0,2));
+  const m = parseInt(thisDate.substring(2,4)) - 1;
+  const d = parseInt(thisDate.substring(4,6));
+  const base = new Date(y, m, d);
+  function toDs(dt) {
+    const yy = String(dt.getFullYear()).slice(2).padStart(2,'0');
+    const mm = String(dt.getMonth()+1).padStart(2,'0');
+    const dd = String(dt.getDate()).padStart(2,'0');
+    return yy+mm+dd;
+  }
+  async function checkDate(ds) {
+    try { const r = await fetch(basePath+'/'+ds+'/index.html',{method:'HEAD'}); return r.ok; }
+    catch(e) { return false; }
+  }
+  const lbl = document.getElementById('nav-date');
+  if (lbl) lbl.textContent = `20${thisDate.substring(0,2)}-${thisDate.substring(2,4)}-${thisDate.substring(4,6)}`;
+  const [prevDs, nextDs] = await Promise.all([
+    (async()=>{ for(let i=1;i<=7;i++) { const dt=new Date(base); dt.setDate(dt.getDate()-i); const ds=toDs(dt); if(await checkDate(ds)) return ds; } return null; })(),
+    (async()=>{ for(let i=1;i<=7;i++) { const dt=new Date(base); dt.setDate(dt.getDate()+i); const ds=toDs(dt); if(await checkDate(ds)) return ds; } return null; })(),
+  ]);
+  const prevBtn = document.getElementById('nav-prev');
+  const nextBtn = document.getElementById('nav-next');
+  if (prevDs && prevBtn) { prevBtn.disabled=false; prevBtn.onclick=()=>{ window.location.href=basePath+'/'+prevDs+'/'; }; }
+  if (nextDs && nextBtn) { nextBtn.disabled=false; nextBtn.onclick=()=>{ window.location.href=basePath+'/'+nextDs+'/'; }; }
+}
+
 renderTabs();
 renderTable();
 document.getElementById('sort-info').textContent = '정렬: 시가총액(M$) ▼ 내림차순';
+initDayNav();
 </script>
 </body>
 </html>
