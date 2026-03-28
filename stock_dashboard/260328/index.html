@@ -134,6 +134,33 @@ const SUM_COLS  = new Set(['시가총액(M$)', '임직원수', '20일평균거�
 let currentTab = Object.keys(TABS_DEF)[0];
 let sortCol = '시가총액(M$)', sortDir = -1;
 let filtered = [...RAW];
+let sectorFiltered = [];
+
+function buildSectorRows() {
+  const cols = TABS_DEF['섹터'] || [];
+  const groups = {};
+  RAW.forEach(r => {
+    const s = r['섹터'] || '미분류';
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(r);
+  });
+  const rows = Object.entries(groups).map(([sector, recs]) => {
+    const row = {};
+    cols.forEach(col => {
+      if (col === '순위') { row[col] = 0; return; }
+      if (col === '종목명') { row[col] = sector; return; }
+      const vals = recs.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+      row[col] = vals.length ? (SUM_COLS.has(col)
+        ? vals.reduce((a,b)=>a+b,0)
+        : vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+    });
+    return row;
+  });
+  rows.sort((a,b)=>(parseFloat(b['시가총액(M$)'])||0)-(parseFloat(a['시가총액(M$)'])||0));
+  rows.forEach((r,i)=>{ r['순위']=i+1; });
+  return rows;
+}
+if (TABS_DEF['섹터']) sectorFiltered = buildSectorRows();
 
 function fmt(val, col) {
   if (val === null || val === undefined || val === '') return '<span class="na">—</span>';
@@ -163,6 +190,7 @@ function renderTabs() {
 
 function switchTab(name) {
   currentTab = name; sortCol = null; sortDir = 1;
+  if (name === '섹터') sectorFiltered = buildSectorRows();
   renderTabs(); renderTable();
 }
 
@@ -194,14 +222,20 @@ function summaryRowHtml(cols, data, rowCls) {
 }
 
 function renderHeader(cols) {
-  const top10    = RAW.slice(0, 10);
-  const allSum   = calcSummaryRow(RAW,   cols, RAW.length + '대 기업 총계');
-  const top10Sum = calcSummaryRow(top10, cols, '10대 기업 총계');
+  const isSector = currentTab === '섹터';
+  let summaryHtml = '';
+  if (!isSector) {
+    const top10    = RAW.slice(0, 10);
+    const allSum   = calcSummaryRow(RAW,   cols, RAW.length + '대 기업 총계');
+    const top10Sum = calcSummaryRow(top10, cols, '10대 기업 총계');
+    summaryHtml = summaryRowHtml(cols, top10Sum, 'top10-row') + summaryRowHtml(cols, allSum, 'all-row');
+  }
   document.getElementById('thead').innerHTML =
-    summaryRowHtml(cols, top10Sum, 'top10-row') +
-    summaryRowHtml(cols, allSum,   'all-row') +
+    summaryHtml +
     '<tr>' + cols.map((c, i) => {
-      let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '';
+      let sticky = isSector
+        ? (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col2' : '')
+        : (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '');
       const sc = c === sortCol ? (sortDir===1?' sort-asc':' sort-desc') : '';
       return `<th class="${sticky}${sc}" onclick="sortBy('${c.replace(/'/g,"\'")}')"> ${c}</th>`;
     }).join('') + '</tr>';
@@ -212,9 +246,12 @@ function renderRows(cols, rows) {
     document.getElementById('tbody').innerHTML = `<tr><td colspan="${cols.length}" class="no-result">검색 결과가 없습니다</td></tr>`;
     return;
   }
+  const isSector = currentTab === '섹터';
   document.getElementById('tbody').innerHTML = rows.map(row =>
     '<tr>' + cols.map((c, i) => {
-      let sticky = i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '';
+      let sticky = isSector
+        ? (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col2' : '')
+        : (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '');
       return `<td class="${sticky}">${fmt(row[c], c)}</td>`;
     }).join('') + '</tr>'
   ).join('');
@@ -222,14 +259,16 @@ function renderRows(cols, rows) {
 
 function renderTable() {
   const cols = TABS_DEF[currentTab];
-  renderHeader(cols); renderRows(cols, filtered);
-  document.getElementById('shown-count').textContent = filtered.length;
+  const rows = currentTab === '섹터' ? sectorFiltered : filtered;
+  renderHeader(cols); renderRows(cols, rows);
+  document.getElementById('shown-count').textContent = rows.length;
 }
 
 function sortBy(col) {
   sortDir = (sortCol === col) ? -sortDir : 1;
   sortCol = col;
-  filtered.sort((a, b) => {
+  const rows = currentTab === '섹터' ? sectorFiltered : filtered;
+  rows.sort((a, b) => {
     let va=a[col], vb=b[col];
     if(va===null||va===undefined) return 1;
     if(vb===null||vb===undefined) return -1;
@@ -243,12 +282,18 @@ function sortBy(col) {
       th.classList.add(sortDir===1?'sort-asc':'sort-desc');
   });
   const cols = TABS_DEF[currentTab];
-  renderRows(cols, filtered);
+  renderRows(cols, rows);
   document.getElementById('sort-info').textContent = `정렬: ${col} ${sortDir===1?'▲ 오름차순':'▼ 내림차순'}`;
 }
 
 function applyFilter() {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (currentTab === '섹터') {
+    const all = buildSectorRows();
+    sectorFiltered = q ? all.filter(r => (r['종목명']||'').toLowerCase().includes(q)) : all;
+    renderTable();
+    return;
+  }
   filtered = q
     ? RAW.filter(r => ['티커','종목명','섹터','업종','국가'].some(k => (r[k]||'').toLowerCase().includes(q)))
     : [...RAW];
