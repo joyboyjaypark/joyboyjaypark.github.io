@@ -444,21 +444,53 @@ async function renderChart(tabName) {
     '#2e8b57','#8b008b','#ff8c00','#1e90ff','#adff2f'
   ];
 
-  const datasets = allInd.map((ind, i) => ({
-    label: ind,
-    data: valid.map(r => r.ind[ind] ?? null),
-    borderColor: palette[i % palette.length],
-    backgroundColor: palette[i % palette.length],
-    pointRadius: 4,
-    pointHoverRadius: 6,
-    borderWidth: 1.5,
-    tension: 0.2,
-    spanGaps: true,
-  }));
+  // 3일 연속 마이너스 여부 판정
+  function isConsec3Neg(vals) {
+    const nums = vals.filter(v => v != null);
+    if (nums.length < 3) return false;
+    const last3 = nums.slice(-3);
+    return last3.every(v => v < 0);
+  }
+
+  const datasets = allInd.map((ind, i) => {
+    const vals = valid.map(r => r.ind[ind] ?? null);
+    const gray = isConsec3Neg(vals);
+    const color = gray ? '#555e72' : palette[i % palette.length];
+    return {
+      label: ind,
+      data: vals,
+      borderColor: color,
+      backgroundColor: color,
+      _baseColor: color,
+      _isGray: gray,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      borderWidth: gray ? 1 : 1.5,
+      tension: 0.2,
+      spanGaps: true,
+    };
+  });
 
   const chartHeight = Math.max(600, allInd.length * 20 + 120);
   inner.style.height = chartHeight + 'px';
   inner.innerHTML = '<canvas id="chart-canvas"></canvas>';
+
+  let _hoveredIdx = null;
+
+  const hoverLinePlugin = {
+    id: 'hoverLine',
+    beforeDatasetsDraw(chart) {
+      if (_hoveredIdx === null) return;
+      chart.data.datasets.forEach((ds, i) => {
+        const isHovered = (i === _hoveredIdx);
+        ds.borderWidth = isHovered ? 4 : (ds._isGray ? 0.7 : 0.8);
+        ds.borderColor = isHovered ? ds._baseColor : (ds._isGray ? '#555e72' : ds._baseColor + '55');
+        ds.backgroundColor = isHovered ? ds._baseColor : (ds._isGray ? '#555e72' : ds._baseColor + '55');
+        ds.pointRadius = isHovered ? 5 : 2;
+        ds.zOrder = isHovered ? 999 : 0;
+      });
+    }
+  };
 
   const rightLabelPlugin = {
     id: 'rightLabels',
@@ -467,14 +499,19 @@ async function renderChart(tabName) {
       chart.data.datasets.forEach((ds, i) => {
         const meta = chart.getDatasetMeta(i);
         if (!meta.visible) return;
-        let lastPt = null, lastIdx = -1;
+        let lastPt = null;
         for (let j = meta.data.length - 1; j >= 0; j--) {
-          if (ds.data[j] != null) { lastPt = meta.data[j]; lastIdx = j; break; }
+          if (ds.data[j] != null) { lastPt = meta.data[j]; break; }
         }
         if (!lastPt) return;
+        const isHovered = (_hoveredIdx === i);
         ctx.save();
-        ctx.font = '10px "Segoe UI",system-ui,sans-serif';
-        ctx.fillStyle = ds.borderColor;
+        ctx.font = isHovered
+          ? 'bold 11px "Segoe UI",system-ui,sans-serif'
+          : '10px "Segoe UI",system-ui,sans-serif';
+        ctx.fillStyle = _hoveredIdx === null
+          ? ds._baseColor
+          : (isHovered ? ds._baseColor : ds._baseColor + '55');
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText(ds.label, lastPt.x + 8, lastPt.y);
@@ -483,17 +520,21 @@ async function renderChart(tabName) {
     }
   };
 
-  window._chartInst = new Chart(document.getElementById('chart-canvas'), {
+  const canvas = document.getElementById('chart-canvas');
+  window._chartInst = new Chart(canvas, {
     type: 'line',
     data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       layout: { padding: { right: 180, top: 10, bottom: 10 } },
+      animation: false,
       plugins: {
         legend: { display: false },
         tooltip: {
-          mode: 'index',
+          mode: 'nearest',
+          intersect: false,
+          filter: item => item.datasetIndex === _hoveredIdx,
           callbacks: {
             label: ctx => ctx.parsed.y != null
               ? ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`
@@ -513,9 +554,21 @@ async function renderChart(tabName) {
           border: { color: '#2e3347' },
           title: { display: true, text: '1주수익률 (%)', color: '#8890a8', font: { size: 11 } }
         }
+      },
+      onHover: (event, elements) => {
+        const prev = _hoveredIdx;
+        _hoveredIdx = elements.length ? elements[0].datasetIndex : null;
+        if (_hoveredIdx !== prev) window._chartInst.draw();
       }
     },
-    plugins: [rightLabelPlugin]
+    plugins: [hoverLinePlugin, rightLabelPlugin]
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (_hoveredIdx !== null) {
+      _hoveredIdx = null;
+      window._chartInst.draw();
+    }
   });
 }
 
