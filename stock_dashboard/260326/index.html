@@ -276,7 +276,7 @@ function renderRows(cols, rows) {
         ? (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : '')
         : (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '');
       if (isGroup && c === '순위') {
-        const btn = `<span class="expand-btn" onclick="toggleGroup('${currentTab}','${groupName.replace(/'/g,"\'")}')">\${isExpanded?'−':'+'}</span>`;
+        const btn = `<span class="expand-btn" onclick="toggleGroup('${currentTab}','${groupName.replace(/'/g,"\'")}')">${isExpanded?'−':'+'}</span>`;
         return `<td class="${sticky}" style="text-align:center">${row[c]} ${btn}</td>`;
       }
       if (isGroup && c === '종목명') {
