@@ -257,7 +257,10 @@ function renderHeader(cols) {
         ? (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : '')
         : (i===0 ? ' sticky-col col0' : i===1 ? ' sticky-col col1' : i===2 ? ' sticky-col col2' : '');
       const sc = c === sortCol ? (sortDir===1?' sort-asc':' sort-desc') : '';
-      return `<th class="${sticky
+      return `<th class="${sticky}${sc}" onclick="sortBy('${c.replace(/'/g,"\'")}')"> ${c}</th>`;
+    }).join('') + '</tr>';
+}
+
 function renderRows(cols, rows) {
   if (!rows.length) {
     document.getElementById('tbody').innerHTML = `<tr><td colspan="${cols.length}" class="no-result">검색 결과가 없습니다</td></tr>`;
