@@ -650,7 +650,20 @@ async function renderChart(tabName) {
               if (v === null) return '';
               const rank = window._indRanks?.[ctx.dataset.label]?.[ctx.dataIndex];
               const rankStr = rank ? ` (${rank}위)` : '';
-              return ' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v.toFixed(2) + '%' + rankStr;
+              const lines = [' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v.toFixed(2) + '%' + rankStr];
+              const vals = window._indVals?.[ctx.dataset.label];
+              if (vals) {
+                const di = ctx.dataIndex;
+                const curLevel = 100 + v;
+                for (let n = 1; n <= 3; n++) {
+                  if (di - n >= 0 && vals[di - n] !== null) {
+                    const prevLevel = 100 + vals[di - n];
+                    const ret = (curLevel / prevLevel - 1) * 100;
+                    lines.push('  ' + n + '일 수익률: ' + (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%');
+                  }
+                }
+              }
+              return lines;
             }
           }
         }
