@@ -107,7 +107,7 @@
   tr.sector-child:hover td{background:#5c1515!important}
   tr.sector-child td.col1{color:var(--accent);font-weight:700}
   tr.sector-child td.ticker-indent{padding-left:32px!important}
-  #chart-area{display:none;background:var(--surface);border-bottom:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 200px)}
+  #chart-area{display:none;background:var(--surface);border-bottom:1px solid var(--border)}
   #chart-ctrl{padding:10px 28px;display:flex;align-items:center;gap:10px;background:var(--surface2);position:sticky;top:0;z-index:50}
   #rise-input{width:60px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--fg);text-align:center}
   #rise-badge .cnt-red{color:var(--red);font-weight:600}
@@ -469,7 +469,7 @@ const hoverLinePlugin = {
 async function renderChart(tabName) {
   const canvas = document.getElementById('chart-canvas');
   const inner = document.getElementById('chart-inner');
-  inner.style.height = '520px';
+  inner.style.height = '3000px';
   if (window._chartInst) { window._chartInst.destroy(); window._chartInst = null; }
 
   const pathParts = window.location.pathname.split('/').filter(Boolean);
